@@ -3,6 +3,22 @@ from pydantic import BaseModel
 from bhashini_translator import Bhashini
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+
+]
+# Allow specific origins or all origins
+origins = [
+    "http://localhost:3000",  # For development with React or Next.js
+    "https://bhashini-python-front-end.vercel.app",  # Replace with your frontend domain
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Allows the specified origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods, including OPTIONS
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Load environment variables from .env file
 load_dotenv()
