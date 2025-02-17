@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from bhashini_translator import Bhashini
 import shutil
+import io
 
 # Set up environment variables for authentication keys (assumes they are set)
 user_id = os.getenv("USER_ID")
@@ -16,15 +17,15 @@ app = FastAPI()
 # CORS setup to allow the frontend to access the API
 origins = [
     "http://localhost:3000",  # Development frontend URL (Next.js)
-    "https://bhashini-python-front-end.vercel.app/",  # Production frontend URL
+    "https://bhashini-python-front-end.vercel.app",  # Production frontend URL
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allows your frontend to interact with backend
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Supported languages and their corresponding codes
