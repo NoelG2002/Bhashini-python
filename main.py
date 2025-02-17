@@ -4,6 +4,7 @@ from bhashini_translator import Bhashini
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -18,19 +19,18 @@ app = FastAPI()
 # Allow specific origins or all origins
 origins = [
     "http://localhost:3000",  # For development with React or Next.js
-    "https://bhashini-python-front-end.vercel.app",  # Replace with your frontend domain
+    "https://bhashini-python-front-end.vercel.app/",  # Replace with your frontend domain
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Allows the specified origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all HTTP methods, including OPTIONS
+    allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
 
-
-# Language codes to handle valid inputs
+# Language codes for translation, TTS, and ASR
 LANGUAGES = [
     "asm_Beng", "ben_Beng", "brx_Deva", "doi_Deva", "eng_Latn", "gom_Deva", 
     "hin_Deva", "kas_Arab", "kas_Deva", "mai_Deva", "mal_Mlym", "mar_Deva", 
@@ -47,11 +47,11 @@ class TranslationRequest(BaseModel):
 # Initialize Bhashini translator instance with API keys
 def get_bhashini_instance(source_language: str, target_language: str = None):
     return Bhashini(
-        source_language, 
-        target_language,
-        user_id=USER_ID,
-        ulca_api_key=ULCA_API_KEY,
-        inference_api_key=INFERENCE_API_KEY
+        sourceLanguage=source_language, 
+        targetLanguage=target_language,
+        ulcaUserId=USER_ID,
+        ulcaApiKey=ULCA_API_KEY,
+        inferenceApiKey=INFERENCE_API_KEY
     )
 
 @app.post("/translate")
