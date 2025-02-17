@@ -39,4 +39,36 @@ async def translate(request: TranslationRequest):
     
     try:
         translated_text = bhashini.translate(request.text)
-        retur
+        return {"translated_text": translated_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+@app.post("/tts")
+async def text_to_speech(request: TranslationRequest):
+    # Validate languages
+    if request.source_language not in LANGUAGES:
+        raise HTTPException(status_code=400, detail="Invalid source language code")
+    
+    # Initialize Bhashini instance for TTS
+    bhashini = get_bhashini_instance(request.source_language)
+    
+    try:
+        base64_string = bhashini.tts(request.text)
+        return {"base64_string": base64_string}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS failed: {str(e)}")
+
+@app.post("/asr_nmt")
+async def automatic_speech_recognition(request: TranslationRequest):
+    # Validate languages
+    if request.source_language not in LANGUAGES or request.target_language not in LANGUAGES:
+        raise HTTPException(status_code=400, detail="Invalid language code")
+    
+    # Initialize Bhashini instance for ASR
+    bhashini = get_bhashini_instance(request.source_language, request.target_language)
+    
+    try:
+        text = bhashini.asr_nmt(request.text)  # Assume `text` is base64 audio data here
+        return {"translated_text": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ASR failed: {str(e)}")
