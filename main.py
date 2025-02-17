@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from bhashini_translator import Bhashini
+import shutil
 
 # Set up environment variables for authentication keys (assumes they are set)
 user_id = os.getenv("USER_ID")
@@ -95,17 +96,28 @@ async def text_to_speech(request: TranslationRequest):
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
-async def asr_nmt(request: TranslationRequest):
+async def asr_nmt(source_language: str, target_language: str, file: UploadFile = File(...)):
     try:
-        source_lang_code = LANGUAGES.get(request.source_language)
-        target_lang_code = LANGUAGES.get(request.target_language)
+        source_lang_code = LANGUAGES.get(source_language)
+        target_lang_code = LANGUAGES.get(target_language)
         
         if not source_lang_code or not target_lang_code:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
+        # Save the uploaded file temporarily
+        audio_path = "temp_audio.wav"
+        with open(audio_path, "wb") as f:
+            f.write(await file.read())
+
+        # Initialize Bhashini for ASR and NMT
         bhashini = Bhashini(source_lang_code, target_lang_code)
-        text = bhashini.asr_nmt(request.text)  # Here text will be the base64 audio
-        return {"translated_text": text}
+        
+        # Pass the audio file directly to Bhashini's ASR and NMT method
+        translated_text, recognized_text = bhashini.asr_nmt(audio_path)
+
+        # Clean up the temporary audio file
+        os.remove(audio_path)
+
+        return {"recognized_text": recognized_text, "translated_text": translated_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
