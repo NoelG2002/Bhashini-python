@@ -2,3 +2,6 @@ fastapi
 uvicorn
 bhashini_translator
 python-dotenv
+requests
+aiofiles
+python-multipart
