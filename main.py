@@ -5,6 +5,9 @@ import os
 from bhashini_translator import Bhashini
 import shutil
 import io
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set up environment variables for authentication keys (assumes they are set)
 user_id = os.getenv("USER_ID")
