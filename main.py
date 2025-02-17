@@ -14,6 +14,11 @@ userID= os.getenv("userID")
 ulcaApiKey = os.getenv("ulcaApiKey")
 InferenceApiKey = os.getenv("InferenceApiKey")
 
+os.environ['userID'] = userID
+os.environ['ulcaApiKey'] = ulcaApiKey
+os.environ['InferenceApiKey']=InferenceApiKey
+os.environ['DefaultPipeLineId']='64392f96daac500b55c543cd'
+
 # Initialize FastAPI app
 app = FastAPI()
 
