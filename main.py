@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Set up environment variables for authentication keys (assumes they are set)
-user_id = os.getenv("USER_ID")
-ulca_api_key = os.getenv("ULCA_API_KEY")
-inference_api_key = os.getenv("INFERENCE_API_KEY")
+userID= os.getenv("userID")
+ulcaApiKey = os.getenv("ulcaApiKey")
+InferenceApiKey = os.getenv("InferenceApiKey")
 
 # Initialize FastAPI app
 app = FastAPI()
