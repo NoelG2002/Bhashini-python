@@ -71,7 +71,7 @@ class TranslationRequest(BaseModel):
 @app.post("/translate")
 async def translate(request: TranslationRequest):
     if not user_id or not api_key or not inference_api_key:
-    raise HTTPException(status_code=500, detail="Missing API credentials")
+        raise HTTPException(status_code=500, detail="Missing API credentials")
     try:
         source_lang_code = LANGUAGES.get(request.source_language)
         target_lang_code = LANGUAGES.get(request.target_language)
