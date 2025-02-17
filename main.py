@@ -36,33 +36,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Supported languages and their corresponding codes
-LANGUAGES = {
-    "Hindi": "hi",
-    "Gom": "gom",
-    "Kannada": "kn",
-    "Dogri": "doi",
-    "Bodo": "brx",
-    "Urdu": "ur",
-    "Tamil": "ta",
-    "Kashmiri": "ks",
-    "Assamese": "as",
-    "Bengali": "bn",
-    "Marathi": "mr",
-    "Sindhi": "sd",
-    "Maithili": "mai",
-    "Punjabi": "pa",
-    "Malayalam": "ml",
-    "Manipuri": "mni",
-    "Telugu": "te",
-    "Sanskrit": "sa",
-    "Nepali": "ne",
-    "Santali": "sat",
-    "Gujarati": "gu",
-    "Odia": "or"
+# Supported language codes
+LANGUAGE_CODES = {
+    "hi", "gom", "kn", "doi", "brx", "ur", "ta", "ks", "as", "bn", "mr", "sd", "mai", "pa", "ml", "mni", "te", "sa", "ne", "sat", "gu", "or", "en"
 }
 
-# Request model for translation
+# Request model for translation with only language codes
 class TranslationRequest(BaseModel):
     text: str
     source_language: str
@@ -72,13 +51,11 @@ class TranslationRequest(BaseModel):
 @app.post("/translate")
 async def translate(request: TranslationRequest):
     try:
-        source_lang_code = LANGUAGES.get(request.source_language)
-        target_lang_code = LANGUAGES.get(request.target_language)
-        
-        if not source_lang_code or not target_lang_code:
+        # Check if the source and target languages are valid codes
+        if request.source_language not in LANGUAGE_CODES or request.target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
-        bhashini = Bhashini(source_lang_code, target_lang_code)
+        bhashini = Bhashini(request.source_language, request.target_language)
         translated_text = bhashini.translate(request.text)
         return {"translated_text": translated_text}
     except Exception as e:
@@ -88,12 +65,11 @@ async def translate(request: TranslationRequest):
 @app.post("/tts")
 async def text_to_speech(request: TranslationRequest):
     try:
-        source_lang_code = LANGUAGES.get(request.source_language)
-        
-        if not source_lang_code:
+        # Check if the source language is valid
+        if request.source_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
-        bhashini = Bhashini(source_lang_code)
+        bhashini = Bhashini(request.source_language)
         base64_string = bhashini.tts(request.text)
         return {"audio_base64": base64_string}
     except Exception as e:
@@ -103,10 +79,8 @@ async def text_to_speech(request: TranslationRequest):
 @app.post("/asr_nmt")
 async def asr_nmt(source_language: str, target_language: str, file: UploadFile = File(...)):
     try:
-        source_lang_code = LANGUAGES.get(source_language)
-        target_lang_code = LANGUAGES.get(target_language)
-        
-        if not source_lang_code or not target_lang_code:
+        # Check if the source and target languages are valid codes
+        if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
         # Save the uploaded file temporarily
@@ -115,7 +89,7 @@ async def asr_nmt(source_language: str, target_language: str, file: UploadFile =
             f.write(await file.read())
 
         # Initialize Bhashini for ASR and NMT
-        bhashini = Bhashini(source_lang_code, target_lang_code)
+        bhashini = Bhashini(source_language, target_language)
         
         # Pass the audio file directly to Bhashini's ASR and NMT method
         translated_text, recognized_text = bhashini.asr_nmt(audio_path)
