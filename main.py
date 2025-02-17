@@ -4,6 +4,16 @@ from bhashini_translator import Bhashini
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+# Load environment variables from .env file
+load_dotenv()
+
+# Fetch API credentials from environment variables
+USER_ID = os.getenv("ULCA_USER_ID")
+ULCA_API_KEY = os.getenv("ULCA_API_KEY")
+INFERENCE_API_KEY = os.getenv("INFERENCE_API_KEY")
+
+# Initialize FastAPI app
+app = FastAPI()
 
 # Allow specific origins or all origins
 origins = [
@@ -19,16 +29,6 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Fetch API credentials from environment variables
-USER_ID = os.getenv("ULCA_USER_ID")
-ULCA_API_KEY = os.getenv("ULCA_API_KEY")
-INFERENCE_API_KEY = os.getenv("INFERENCE_API_KEY")
-
-# Initialize FastAPI app
-app = FastAPI()
 
 # Language codes to handle valid inputs
 LANGUAGES = [
