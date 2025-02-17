@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+bhashini_translator
+python-dotenv
