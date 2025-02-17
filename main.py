@@ -5,7 +5,6 @@ import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
-]
 # Allow specific origins or all origins
 origins = [
     "http://localhost:3000",  # For development with React or Next.js
