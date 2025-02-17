@@ -49,9 +49,6 @@ def get_bhashini_instance(source_language: str, target_language: str = None):
     return Bhashini(
         sourceLanguage=source_language, 
         targetLanguage=target_language,
-        ulcaUserId=USER_ID,
-        ulcaApiKey=ULCA_API_KEY,
-        inferenceApiKey=INFERENCE_API_KEY
     )
 
 @app.post("/translate")
