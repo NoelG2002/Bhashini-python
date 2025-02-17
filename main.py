@@ -4,8 +4,13 @@ from bhashini_translator import Bhashini
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
+
+# Fetch API credentials from environment variables
+USER_ID = os.getenv("ULCA_USER_ID")
+ULCA_API_KEY = os.getenv("ULCA_API_KEY")
+INFERENCE_API_KEY = os.getenv("INFERENCE_API_KEY")
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -24,9 +29,15 @@ class TranslationRequest(BaseModel):
     target_language: str
     text: str
 
-# Initialize Bhashini translator instance
+# Initialize Bhashini translator instance with API keys
 def get_bhashini_instance(source_language: str, target_language: str = None):
-    return Bhashini(source_language, target_language)
+    return Bhashini(
+        source_language, 
+        target_language,
+        user_id=USER_ID,
+        ulca_api_key=ULCA_API_KEY,
+        inference_api_key=INFERENCE_API_KEY
+    )
 
 @app.post("/translate")
 async def translate(request: TranslationRequest):
