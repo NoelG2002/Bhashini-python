@@ -63,17 +63,28 @@ async def translate(request: TranslationRequest):
 
 # Route to handle Text-to-Speech (TTS) functionality
 @app.post("/tts")
-async def text_to_speech(request: TranslationRequest):
+async def text_to_speech(text: str, source_language: str, target_language: str):
     try:
-        # Check if the source language is valid
-        if request.source_language not in LANGUAGE_CODES:
-            raise HTTPException(status_code=400, detail="Invalid language code.")
-        
-        bhashini = Bhashini(request.source_language)
-        base64_string = bhashini.tts(request.text)
-        return {"audio_base64": base64_string}
+        # Instantiate the Bhashini object for translation (if needed)
+        bhashini = Bhashini(source_language, target_language)
+        translated_text = bhashini.translate(text)
+
+        # Instantiate the Bhashini object for TTS
+        bhashini = Bhashini(target_language)
+        base64_string = bhashini.tts(translated_text)
+
+        # Decode base64 string to binary audio
+        audio_data = base64.b64decode(base64_string)
+
+        # Save the audio file
+        audio_file_path = "output_audio.wav"
+        with open(audio_file_path, "wb") as f:
+            f.write(audio_data)
+
+        return {"audio_file": audio_file_path, "audio_base64": base64_string}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
