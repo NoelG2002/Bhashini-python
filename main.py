@@ -90,21 +90,23 @@ async def text_to_speech(request: TranslationRequest):
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
-async def asr_nmt(audio_file: UploadFile = File(...)):
+async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
     try:
+        # Check if source and target languages are valid codes
+        if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
+            raise HTTPException(status_code=400, detail="Invalid language code.")
+
         # Read the uploaded file (audio)
         audio_content = await audio_file.read()
 
         # Convert the file content to base64
         audio_base64 = base64.b64encode(audio_content).decode('utf-8')
-        if request.source_language not in LANGUAGE_CODES or request.target_language not in LANGUAGE_CODES:
-            raise HTTPException(status_code=400, detail="Invalid language code.")
         
         # Initialize Bhashini for ASR and NMT
-        bhashini = Bhashini(request.source_language, request.target_language)
+        bhashini = Bhashini(source_language, target_language)
         
         # Pass the base64-encoded string to Bhashini's asr_nmt method
-        translated_text= bhashini.asr_nmt(audio_base64)
+        translated_text = bhashini.asr_nmt(audio_base64)
 
         return {"translated_text": translated_text}
     except Exception as e:
