@@ -6,6 +6,7 @@ from bhashini_translator import Bhashini
 import shutil
 import base64
 import io
+from io import BytesIO
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -89,9 +90,13 @@ async def text_to_speech(request: TranslationRequest):
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
-async def asr_nmt(request: TranslationRequest):
+async def asr_nmt(audio_file: UploadFile = File(...)):
     try:
-        # Check if the source and target languages are valid codes
+        # Read the uploaded file (audio)
+        audio_content = await audio_file.read()
+
+        # Convert the file content to base64
+        audio_base64 = base64.b64encode(audio_content).decode('utf-8')
         if request.source_language not in LANGUAGE_CODES or request.target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
@@ -99,7 +104,7 @@ async def asr_nmt(request: TranslationRequest):
         bhashini = Bhashini(request.source_language, request.target_language)
         
         # Pass the base64-encoded string to Bhashini's asr_nmt method
-        translated_text= bhashini.asr_nmt(request.text)
+        translated_text= bhashini.asr_nmt(audio_base64)
 
         return {"translated_text": translated_text}
     except Exception as e:
