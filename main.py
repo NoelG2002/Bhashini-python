@@ -88,6 +88,7 @@ async def text_to_speech(request: TranslationRequest):
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
+@app.post("/asr_nmt")
 async def asr_nmt(source_language: str, target_language: str, file: UploadFile = File(...)):
     try:
         # Check if the source and target languages are valid codes
