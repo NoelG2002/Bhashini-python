@@ -88,6 +88,12 @@ async def text_to_speech(request: TranslationRequest):
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
+import base64
+from fastapi import FastAPI, UploadFile, File, HTTPException
+import os
+
+app = FastAPI()
+
 @app.post("/asr_nmt")
 async def asr_nmt(source_language: str, target_language: str, file: UploadFile = File(...)):
     try:
@@ -95,20 +101,18 @@ async def asr_nmt(source_language: str, target_language: str, file: UploadFile =
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
         
-        # Save the uploaded file temporarily
-        audio_path = "temp_audio.wav"
-        with open(audio_path, "wb") as f:
-            f.write(await file.read())
+        # Read the audio file as binary data
+        audio_data = await file.read()
+
+        # Convert the binary data to a base64-encoded string
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
         # Initialize Bhashini for ASR and NMT
         bhashini = Bhashini(source_language, target_language)
         
-        # Pass the audio file directly to Bhashini's ASR and NMT method
-        translated_text, recognized_text = bhashini.asr_nmt(audio_path)
+        # Pass the base64-encoded string to Bhashini's asr_nmt method
+        translated_text = bhashini.asr_nmt(audio_base64)
 
-        # Clean up the temporary audio file
-        os.remove(audio_path)
-
-        return {"recognized_text": recognized_text, "translated_text": translated_text}
+        return translated_text
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
