@@ -64,14 +64,14 @@ async def translate(request: TranslationRequest):
 
 # Route to handle Text-to-Speech (TTS) functionality
 @app.post("/tts")
-async def text_to_speech(text: str, source_language: str, target_language: str):
+async def text_to_speech(request: TranslationRequest):
     try:
         # Instantiate the Bhashini object for translation (if needed)
-        bhashini = Bhashini(source_language, target_language)
+        bhashini = Bhashini(request.source_language, request.target_language)
         translated_text = bhashini.translate(text)
 
         # Instantiate the Bhashini object for TTS
-        bhashini = Bhashini(target_language)
+        bhashini = Bhashini(request.target_language)
         base64_string = bhashini.tts(translated_text)
 
         # Decode base64 string to binary audio
