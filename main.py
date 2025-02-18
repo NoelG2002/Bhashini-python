@@ -27,7 +27,7 @@ app = FastAPI()
 # CORS setup to allow the frontend to access the API
 origins = [
     "http://localhost:3000",  # Development frontend URL (Next.js)
-    "https://bhashini-python-front-end.vercel.app",  # Production frontend URL
+    "https://bhashini-kamco.vercel.app",  # Production frontend URL
 ]
 
 app.add_middleware(
