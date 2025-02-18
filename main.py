@@ -68,7 +68,7 @@ async def text_to_speech(request: TranslationRequest):
     try:
         # Instantiate the Bhashini object for translation (if needed)
         bhashini = Bhashini(request.source_language, request.target_language)
-        translated_text = bhashini.translate(text)
+        translated_text = bhashini.translate(request.text)
 
         # Instantiate the Bhashini object for TTS
         bhashini = Bhashini(request.target_language)
