@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import os
 from bhashini_translator import Bhashini
 import shutil
+import base64
 import io
 from dotenv import load_dotenv
 
