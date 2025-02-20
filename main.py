@@ -8,8 +8,6 @@ import base64
 import io
 from io import BytesIO
 from dotenv import load_dotenv
-import Head from "next/head";
-
 
 
 
@@ -53,15 +51,6 @@ class TranslationRequest(BaseModel):
     source_language: str
     target_language: str
 
-export default function Home() {
-  return (
-    <>
-      <Head>
-        <title>Bhashini Translate App</title>
-      </Head>
-    </>
-  );
-}
 
 # Route to handle text translation
 @app.post("/translate")
