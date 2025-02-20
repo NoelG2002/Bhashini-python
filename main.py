@@ -57,9 +57,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Home Page - My App</title>
+        <title>Bhashini Translate App</title>
       </Head>
-      <h1>Welcome to My App</h1>
     </>
   );
 }
