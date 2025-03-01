@@ -30,6 +30,7 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",  # Development frontend URL (Next.js)
     "https://bhashini-kamco.vercel.app",  # Production frontend URL
+    "https://agrivaani.vercel.app/",
 ]
 
 app.add_middleware(
