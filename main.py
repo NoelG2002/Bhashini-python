@@ -134,7 +134,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
 
         # Adaptively split audio (only if required)
-        chunk_paths = adaptive_split_audio(temp_file, max_duration_ms=30000, overlap_ms=5000)
+        chunk_paths = adaptive_split_audio(temp_file, max_duration_ms=25000, overlap_ms=7000)
 
         bhashini = Bhashini(source_language, target_language)
         translated_texts = []
