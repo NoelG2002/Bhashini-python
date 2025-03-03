@@ -128,17 +128,22 @@ async def process_chunk(chunk_path, bhashini):
 
 
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks for better fluency."""
+    """Merges overlapping text chunks for better fluency and removes redundancy."""
     merged_text = []
     last_text = ""
 
     for text in translated_texts:
-        if last_text and text.startswith(last_text[-5:]):  # Look for overlaps
-            text = text[len(last_text[-5:]):]  # Trim duplicate start
+        if last_text:
+            overlap_size = min(10, len(last_text))  # Look for overlaps within the last 10 chars
+            for i in range(overlap_size, 0, -1):  # Reduce overlap size progressively
+                if text.startswith(last_text[-i:]):  # Check if new text starts with last segment's end
+                    text = text[i:]  # Remove duplicated part
+                    break
         merged_text.append(text)
-        last_text = text  # Keep track of last segment
+        last_text = text  # Update last segment for comparison
 
     return " ".join(merged_text)
+
 
 
 
