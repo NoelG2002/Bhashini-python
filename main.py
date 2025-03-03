@@ -101,11 +101,14 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
         # Read the uploaded file (audio)
-        file_content = await audio_file.read()
-        buffer = BytesIO(file_content)
+        temp_file = f"temp_{audio_file.filename}"
+        with open(temp_file, "wb") as f:
+            shutil.copyfileobj(audio_file.file, f)
 
-        # Convert the file content to base64
-        audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        # Read and convert to base64
+        with open(temp_file, "rb") as f:
+            audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+
         # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
