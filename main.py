@@ -112,7 +112,9 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
-        
+               
+        os.remove(temp_file)
+
         # Initialize Bhashini for ASR and NMT
         bhashini = Bhashini(source_language, target_language)
         
