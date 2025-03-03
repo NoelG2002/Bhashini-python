@@ -7,6 +7,7 @@ import shutil
 from pydub import AudioSegment
 import base64
 import io
+import re
 from io import BytesIO
 import asyncio
 from dotenv import load_dotenv
@@ -128,19 +129,23 @@ async def process_chunk(chunk_path, bhashini):
 
 
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks for better fluency and removes redundancy."""
+    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
     merged_text = []
-    last_text = ""
+    prev_words = []
 
     for text in translated_texts:
-        if last_text:
-            overlap_size = min(10, len(last_text))  # Look for overlaps within the last 10 chars
-            for i in range(overlap_size, 0, -1):  # Reduce overlap size progressively
-                if text.startswith(last_text[-i:]):  # Check if new text starts with last segment's end
-                    text = text[i:]  # Remove duplicated part
+        words = text.split()  # Convert text into a list of words
+        
+        if prev_words:
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
+
+            for i in range(max_overlap, 0, -1):  
+                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
+                    words = words[i:]  # Remove overlapping words
                     break
-        merged_text.append(text)
-        last_text = text  # Update last segment for comparison
+
+        merged_text.extend(words)
+        prev_words = words  # Update previous words for the next iteration
 
     return " ".join(merged_text)
 
