@@ -126,7 +126,22 @@ async def process_chunk(chunk_path, bhashini):
     # Ensure asr_nmt is called correctly (depending on whether it's async or not)
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
-    
+
+def merge_sentences(translated_texts):
+    """Merges overlapping text chunks for better fluency."""
+    merged_text = []
+    last_text = ""
+
+    for text in translated_texts:
+        if last_text and text.startswith(last_text[-5:]):  # Look for overlaps
+            text = text[len(last_text[-5:]):]  # Trim duplicate start
+        merged_text.append(text)
+        last_text = text  # Keep track of last segment
+
+    return " ".join(merged_text)
+
+
+
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
@@ -145,13 +160,15 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
+        merged_translation = merge_sentences(translated_texts)
+
 
         for chunk_path in chunk_paths:
             os.remove(chunk_path)
         os.remove(temp_file)
 
-        return {"translated_text": " ".join(translated_texts)}
-
+        return {"translated_text": merged_translation}
+        
         # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
