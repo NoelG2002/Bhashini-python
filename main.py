@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import base64
 import io
 from io import BytesIO
+import asyncio
 from dotenv import load_dotenv
 
 
@@ -109,6 +110,11 @@ def split_audio(audio_path, chunk_length_ms=20000):
     return chunk_paths
 
 
+async def process_chunk(chunk_path, bhashini):
+    with open(chunk_path, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
+    
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
@@ -123,32 +129,16 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
             
         # Split the audio file into smaller chunks
-        chunk_paths = split_audio(temp_file, chunk_length_ms=20000)  # 20 sec per chunk
-
-        # Initialize Bhashini for ASR
+        chunk_paths = split_audio(temp_file, chunk_length_ms=20000)
         bhashini = Bhashini(source_language, target_language)
 
-        # Process each chunk separately
-        translated_texts = []
-        for chunk_path in chunk_paths:
-            with open(chunk_path, "rb") as f:
-                audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-
-            #Get ASR-NMT translation
-            translated_text = bhashini.asr_nmt(audio_base64)
-            translated_texts.append(translated_text)
+        translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
 
         for chunk_path in chunk_paths:
-            os.remove(chunk_path)  # Clean up after use
-
-
-       # Delete the temporary file
+            os.remove(chunk_path)
         os.remove(temp_file)
 
-       # Combine all translated chunks
-        final_translation = " ".join(translated_texts)
-        return {"translated_text": final_translation}
-
+        return {"translated_text": " ".join(translated_texts)}
 
         # Convert the file content to base64
         #audio_content = await audio_file.read()
