@@ -3,6 +3,7 @@ uvicorn
 bhashini_translator
 python-dotenv
 requests
+asyncio
 aiofiles
 pydub
 python-multipart
