@@ -138,8 +138,9 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             translated_text = bhashini.asr_nmt(audio_base64)
             translated_texts.append(translated_text)
 
-        # Delete the chunk after processing
-        os.remove(chunk_path)
+       for chunk_path in chunk_paths:
+           os.remove(chunk_path)  # Clean up after use
+
 
         # Delete the temporary file
         os.remove(temp_file)
