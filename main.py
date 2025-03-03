@@ -101,10 +101,13 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
         # Read the uploaded file (audio)
-        audio_content = await audio_file.read()
-
+        buffer = BytesIO()
+        async for chunk in audio_file.file:
+            buffer.write(chunk)
+        buffer.seek(0)
+        audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
         # Convert the file content to base64
-        audio_base64 = base64.b64encode(audio_content).decode('utf-8')
+        #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
         
         # Initialize Bhashini for ASR and NMT
         bhashini = Bhashini(source_language, target_language)
