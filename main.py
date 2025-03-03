@@ -94,7 +94,7 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=5000):
+async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=4000):
     """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
@@ -166,7 +166,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
             
         # Split the audio file into smaller chunks
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=5000)
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=4000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
