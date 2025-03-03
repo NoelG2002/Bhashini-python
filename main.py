@@ -92,32 +92,21 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def adaptive_split_audio(audio_path, max_duration_ms=25000, overlap_ms=7000):
+def split_audio(audio_path, chunk_length_ms=20000):
     """
-    Splits an audio file adaptively into chunks, ensuring context preservation.
-    - max_duration_ms: Maximum chunk size in milliseconds.
-    - overlap_ms: Overlap duration between consecutive chunks for context.
+    Splits an audio file into chunks of the given length (in milliseconds).
+    Returns a list of paths to chunk files.
     """
     audio = AudioSegment.from_file(audio_path)
+    chunks = [audio[i:i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
     
-    if len(audio) <= max_duration_ms:
-        return [audio_path]  # No need to split if already within limits
-
     chunk_paths = []
-    start = 0
-
-    while start < len(audio):
-        end = min(start + max_duration_ms, len(audio))
-        chunk = audio[start:end]
-        chunk_path = f"chunk_{len(chunk_paths)}.wav"
+    for idx, chunk in enumerate(chunks):
+        chunk_path = f"chunk_{idx}.wav"
         chunk.export(chunk_path, format="wav")
         chunk_paths.append(chunk_path)
-
-        start = end - overlap_ms  # Move forward with overlap
-
+    
     return chunk_paths
-
-
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
@@ -132,29 +121,34 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
+            
+        # Split the audio file into smaller chunks
+        chunk_paths = split_audio(temp_file, chunk_length_ms=20000)  # 20 sec per chunk
 
-        # Adaptively split audio (only if required)
-        chunk_paths = adaptive_split_audio(temp_file, max_duration_ms=25000, overlap_ms=7000)
-
+        # Initialize Bhashini for ASR
         bhashini = Bhashini(source_language, target_language)
-        translated_texts = []
 
+        # Process each chunk separately
+        translated_texts = []
         for chunk_path in chunk_paths:
             with open(chunk_path, "rb") as f:
                 audio_base64 = base64.b64encode(f.read()).decode('utf-8')
 
-            translated_texts.append(bhashini.asr_nmt(audio_base64))
+            #Get ASR-NMT translation
+            translated_text = bhashini.asr_nmt(audio_base64)
+            translated_texts.append(translated_text)
 
-        # Cleanup
         for chunk_path in chunk_paths:
-            os.remove(chunk_path)
+            os.remove(chunk_path)  # Clean up after use
 
+
+       # Delete the temporary file
         os.remove(temp_file)
 
-        # Merge translations intelligently
+       # Combine all translated chunks
         final_translation = " ".join(translated_texts)
-
         return {"translated_text": final_translation}
+
 
         # Convert the file content to base64
         #audio_content = await audio_file.read()
