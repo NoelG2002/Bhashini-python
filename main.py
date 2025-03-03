@@ -92,21 +92,13 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def split_audio(audio_path, chunk_length_ms=20000):
-    """
-    Splits an audio file into chunks of the given length (in milliseconds).
-    Returns a list of paths to chunk files.
-    """
-    audio = AudioSegment.from_file(audio_path)
-    chunks = [audio[i:i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
-    
-    chunk_paths = []
-    for idx, chunk in enumerate(chunks):
-        chunk_path = f"chunk_{idx}.wav"
-        chunk.export(chunk_path, format="wav")
-        chunk_paths.append(chunk_path)
-    
-    return chunk_paths
+def compress_audio(input_path, output_path="compressed_audio.wav", bitrate="32k"):
+    """Compresses audio by reducing bitrate and converting to mono."""
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_channels(1)  # Convert to mono
+    audio.export(output_path, format="wav", bitrate=bitrate)
+    return output_path
+
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
@@ -121,35 +113,23 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
-            
-        # Split the audio file into smaller chunks
-        chunk_paths = split_audio(temp_file, chunk_length_ms=20000)  # 20 sec per chunk
 
-        # Initialize Bhashini for ASR
+        # Compress audio
+        compressed_audio_path = compress_audio(temp_file)
+
+        # Convert compressed file to base64
+        with open(compressed_audio_path, "rb") as f:
+            audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+        # Send to API
         bhashini = Bhashini(source_language, target_language)
+        translated_text = bhashini.asr_nmt(audio_base64)
 
-        # Process each chunk separately
-        translated_texts = []
-        for chunk_path in chunk_paths:
-            with open(chunk_path, "rb") as f:
-                audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-
-            #Get ASR-NMT translation
-            translated_text = bhashini.asr_nmt(audio_base64)
-            translated_texts.append(translated_text)
-
-        for chunk_path in chunk_paths:
-            os.remove(chunk_path)  # Clean up after use
-
-
-       # Delete the temporary file
+        # Cleanup
         os.remove(temp_file)
+        os.remove(compressed_audio_path)
 
-       # Combine all translated chunks
-        final_translation = " ".join(translated_texts)
-        return {"translated_text": final_translation}
-
-
+        return {"translated_text": translated_text}
         # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
