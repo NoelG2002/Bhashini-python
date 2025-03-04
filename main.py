@@ -131,7 +131,10 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         
         # Initialize ASR and NMT processing
         bhashini = Bhashini(source_language, target_language)
-        translated_text = bhashini.asr_nmt(audio_base64)
+        import httpx
+
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minutes timeout
+            translated_text = bhashini.asr_nmt(audio_base64)
 
         if not translated_text:
             raise HTTPException(status_code=500, detail="No translated text returned from ASR")
