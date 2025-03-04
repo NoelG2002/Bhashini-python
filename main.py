@@ -12,8 +12,6 @@ import re
 from io import BytesIO
 import asyncio
 from dotenv import load_dotenv
-from difflib import SequenceMatcher
-
 
 
 
@@ -97,14 +95,20 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-from pydub.silence import split_on_silence
+async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=3000):
+    """Splits audio into overlapping chunks to preserve context."""
+    def sync_split():
+        audio = AudioSegment.from_file(audio_path)
+        chunks = []
+        start = 0
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
+            chunks.append(chunk)
+            start += chunk_length_ms - overlap_ms  # Overlapping part
+        return chunks
 
-def split_audio(audio_path, min_silence_len=500, silence_thresh=-40):
-    """Splits audio using silence detection to avoid context loss."""
-    audio = AudioSegment.from_file(audio_path)
-
-    # Split audio based on silent parts to preserve words
-    chunks = split_on_silence(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
+    chunks = await asyncio.to_thread(sync_split)
 
     chunk_paths = []
     for idx, chunk in enumerate(chunks):
@@ -116,32 +120,33 @@ def split_audio(audio_path, min_silence_len=500, silence_thresh=-40):
 
 
 
-
 async def process_chunk(chunk_path, bhashini):
-    """Process a single chunk for ASR and translation."""
+    """Process a single chunk for ASR and NMT."""
     with open(chunk_path, "rb") as f:
         audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-
-    # If bhashini.asr_nmt() is async, call it directly
-    return await bhashini.asr_nmt(audio_base64)
+    
+    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
 
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks by removing redundancy using fuzzy matching."""
+    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
     merged_text = []
-    prev_text = ""
+    prev_words = []
 
     for text in translated_texts:
-        # Use SequenceMatcher to find similarity between overlapping parts
-        matcher = SequenceMatcher(None, prev_text, text)
-        match = matcher.find_longest_match(0, len(prev_text), 0, len(text))
+        words = text.split()  # Convert text into a list of words
+        
+        if prev_words:
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
 
-        # If a match is found at the end of prev_text and start of text
-        if match.size > 5 and match.b == 0:  # Ensure it’s at the beginning of new text
-            text = text[match.size:]  # Remove duplicate part
+            for i in range(max_overlap, 0, -1):  
+                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
+                    words = words[i:]  # Remove overlapping words
+                    break
 
-        merged_text.append(text)
-        prev_text = text  # Update previous text for next iteration
+        merged_text.extend(words)
+        prev_words = words  # Update previous words for the next iteration
 
     return " ".join(merged_text)
 
@@ -162,7 +167,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
             
         # Split the audio file into smaller chunks
-        chunk_paths = split_audio(temp_file, min_silence_len=500, silence_thresh=-40)
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=3000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
