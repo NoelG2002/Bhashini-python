@@ -118,8 +118,6 @@ async def split_audio(audio_path, chunk_length_ms=15000, overlap_ms=4000):
 
     return chunk_paths
 
-
-
 async def process_chunk(chunk_path, bhashini):
     """Process a single chunk for ASR and NMT."""
     with open(chunk_path, "rb") as f:
