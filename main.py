@@ -175,7 +175,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
         # Read the uploaded file (audio)
-       temp_file = f"temp_{audio_file.filename}"
+        temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
 
