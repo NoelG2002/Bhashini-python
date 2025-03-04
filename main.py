@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,9 +12,6 @@ import re
 from io import BytesIO
 import asyncio
 from dotenv import load_dotenv
-import difflib
-import concurrent.futures
-from pydub.silence import split_on_silence
 
 
 
@@ -97,12 +95,17 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-async def split_audio(audio_path, min_silence_len=500, silence_thresh=-40):
-    """Splits audio based on silence to maintain natural sentence boundaries."""
+async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=3000):
+    """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
-        chunks = split_on_silence(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
+        chunks = []
+        start = 0
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
+            chunks.append(chunk)
+            start += chunk_length_ms - overlap_ms  # Overlapping part
         return chunks
 
     chunks = await asyncio.to_thread(sync_split)
@@ -116,39 +119,37 @@ async def split_audio(audio_path, min_silence_len=500, silence_thresh=-40):
     return chunk_paths
 
 
+
 async def process_chunk(chunk_path, bhashini):
-    """Process a single chunk for ASR and NMT using a thread pool for parallel execution."""
+    """Process a single chunk for ASR and NMT."""
     with open(chunk_path, "rb") as f:
         audio_base64 = base64.b64encode(f.read()).decode('utf-8')
     
-    loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        return await loop.run_in_executor(pool, bhashini.asr_nmt, audio_base64)
+    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
+
 
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks at the word level using fuzzy matching to remove redundancy."""
+    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
     merged_text = []
-    prev_sentence = ""
+    prev_words = []
 
     for text in translated_texts:
-        words = text.split()
-        prev_words = prev_sentence.split()
-
+        words = text.split()  # Convert text into a list of words
+        
         if prev_words:
-            # Find the longest common suffix-prefix overlap
-            overlap_index = 0
-            matcher = difflib.SequenceMatcher(None, prev_words, words)
-            for match in matcher.get_matching_blocks():
-                if match.size > overlap_index:
-                    overlap_index = match.size
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
 
-            # Remove overlapping words from the new text
-            words = words[overlap_index:]
+            for i in range(max_overlap, 0, -1):  
+                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
+                    words = words[i:]  # Remove overlapping words
+                    break
 
         merged_text.extend(words)
-        prev_sentence = " ".join(words)  # Update previous sentence for next iteration
+        prev_words = words  # Update previous words for the next iteration
 
     return " ".join(merged_text)
+
 
 
 
@@ -166,7 +167,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
             
         # Split the audio file into smaller chunks
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=15000, overlap_ms=2000)
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=3000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
