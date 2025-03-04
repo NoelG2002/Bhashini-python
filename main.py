@@ -109,10 +109,12 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
          bhashini = Bhashini(source_language, target_language)
          translated_text = bhashini.asr_nmt(audio_base64)
          return {"translated_text": translated_text}
-     except HTTPException as e:
-         print(f"API Response: {e.detail}")
-         raise HTTPException(status_code=e.status_code, detail=e.detail)
-     except Exception as e:
-         print(f"General Error: {str(e)}")
-         raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException as e:
+        print(f"API Response: {e.detail}")
+        return {"error": f"API Response: {e.detail}"}
+    except Exception as e:
+        import traceback
+        print(f"General Error: {str(e)}")
+        traceback.print_exc()  # Prints the full error traceback
+        return {"error": f"General Error: {str(e)}"}
 
