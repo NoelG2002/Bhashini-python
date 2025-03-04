@@ -11,6 +11,8 @@ import re
 from io import BytesIO
 import asyncio
 from dotenv import load_dotenv
+import difflib
+
 
 
 
@@ -128,24 +130,33 @@ async def process_chunk(chunk_path, bhashini):
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
 
-def merge_sentences(translated_texts):
-    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
-    merged_text = []
-    prev_words = []
+def normalize_text(text):
+    """Convert text to lowercase and remove punctuation for better overlap detection."""
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+    return text
 
-    for text in translated_texts:
-        words = text.split()  # Convert text into a list of words
-        
-        if prev_words:
-            max_overlap = min(15, len(prev_words), len(words))  # Allow overlap check up to 10 words
+def merge_sentences(translated_texts, min_overlap=5):
+    """Merges overlapping text chunks using fuzzy matching and longest common substring."""
+    if not translated_texts:
+        return ""
 
-            for i in range(max_overlap, 0, -1):  
-                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
-                    words = words[i:]  # Remove overlapping words
-                    break
+    merged_text = translated_texts[0].split()  # Start with the first chunk
+    prev_text = normalize_text(" ".join(merged_text))
+
+    for text in translated_texts[1:]:
+        words = text.split()
+        current_text = normalize_text(" ".join(words))
+
+        # Find longest common subsequence (LCS) between prev_text and current_text
+        matcher = difflib.SequenceMatcher(None, prev_text.split(), current_text.split())
+        match = matcher.find_longest_match(0, len(prev_text.split()), 0, len(current_text.split()))
+
+        if match.size >= min_overlap:  # Avoid merging if overlap is too small
+            words = words[match.size:]  # Remove overlapping words
 
         merged_text.extend(words)
-        prev_words = words  # Update previous words for the next iteration
+        prev_text = normalize_text(" ".join(merged_text))  # Update for next iteration
 
     return " ".join(merged_text)
 
