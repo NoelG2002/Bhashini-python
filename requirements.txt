@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+gunicorn
 bhashini_translator
 python-dotenv
 requests
