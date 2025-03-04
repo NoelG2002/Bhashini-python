@@ -102,6 +102,11 @@ async def text_to_speech(request: TranslationRequest):
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
      try:
+         audio_content = await audio_file.read()
+         audio_base64 = base64.b64encode(audio_content).decode('utf-8')
+               
+        # Initialize Bhashini for ASR and NMT
+         bhashini = Bhashini(source_language, target_language)
          translated_text = bhashini.asr_nmt(audio_base64)
          return {"translated_text": translated_text}
      except HTTPException as e:
