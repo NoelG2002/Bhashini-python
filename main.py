@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -94,31 +95,19 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-from pydub import AudioSegment
-from pydub.silence import detect_nonsilent
-
-async def split_audio(audio_path, chunk_length_ms=20000, min_silence_len=700, silence_thresh=-40):
-    """Splits audio at natural pauses instead of fixed-length chunks."""
+async def split_audio(audio_path, chunk_length_ms=15000, overlap_ms=4000):
+    """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
-
-        # Detect speech segments (non-silent parts)
-        nonsilent_ranges = detect_nonsilent(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
-
         chunks = []
         start = 0
-
-        for end in nonsilent_ranges:
-            if end[1] - start > chunk_length_ms:  # If speech segment exceeds chunk size
-                end = start + chunk_length_ms  # Enforce max length
-            chunk = audio[start:end[1]]
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
             chunks.append(chunk)
-            start = end[1]  # Move to next segment
-
+            start += chunk_length_ms - overlap_ms  # Overlapping part
         return chunks
 
-    # Process chunking asynchronously
     chunks = await asyncio.to_thread(sync_split)
 
     chunk_paths = []
@@ -140,26 +129,24 @@ async def process_chunk(chunk_path, bhashini):
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
 
-import difflib
-
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks by detecting repeated phrases using similarity matching."""
+    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
     merged_text = []
-    prev_sentence = ""
+    prev_words = []
 
     for text in translated_texts:
-        text = text.strip()
+        words = text.split()  # Convert text into a list of words
+        
+        if prev_words:
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
 
-        if prev_sentence:
-            # Find longest common substring to detect overlap
-            matcher = difflib.SequenceMatcher(None, prev_sentence, text)
-            match = matcher.find_longest_match(0, len(prev_sentence), 0, len(text))
+            for i in range(max_overlap, 0, -1):  
+                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
+                    words = words[i:]  # Remove overlapping words
+                    break
 
-            if match.size > 10:  # If significant overlap detected
-                text = text[match.b:end]  # Trim overlapping part
-            
-        merged_text.append(text)
-        prev_sentence = text  # Update last sentence for next iteration
+        merged_text.extend(words)
+        prev_words = words  # Update previous words for the next iteration
 
     return " ".join(merged_text)
 
@@ -178,27 +165,21 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
-
-        # Use improved split function
-        chunk_paths = await split_audio(temp_file)
-
-        # Initialize Bhashini API
+            
+        # Split the audio file into smaller chunks
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=15000, overlap_ms=4000)
         bhashini = Bhashini(source_language, target_language)
 
-        # Process each chunk asynchronously
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
-
-        # Merge translated sentences with improved merging logic
         merged_translation = merge_sentences(translated_texts)
 
-        # Clean up temporary files
+
         for chunk_path in chunk_paths:
             os.remove(chunk_path)
         os.remove(temp_file)
 
         return {"translated_text": merged_translation}
-
-
+        
         # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
