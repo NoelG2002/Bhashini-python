@@ -98,17 +98,45 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+from pydub import AudioSegment
+import base64
+import io
+
+def preprocess_audio(audio_bytes):
+    # Convert bytes to an audio file in memory
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
+    
+    # Convert to 16kHz mono WAV (recommended for ASR)
+    audio = audio.set_frame_rate(16000).set_channels(1)
+
+    # Compress & export to memory
+    buffer = io.BytesIO()
+    audio.export(buffer, format="wav", bitrate="32k")
+    
+    return buffer.getvalue()  # Return processed audio bytes
+
+
+
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
      try:
-         audio_content = await audio_file.read()
-         audio_base64 = base64.b64encode(audio_content).decode('utf-8')
-               
-        # Initialize Bhashini for ASR and NMT
-         bhashini = Bhashini(source_language, target_language)
-         translated_text = bhashini.asr_nmt(audio_base64)
-         return {"translated_text": translated_text}
+        audio_content = await audio_file.read()
+        processed_audio = preprocess_audio(audio_content)
+        
+        # Encode efficiently in Base64 (without memory overflow)
+        audio_base64 = base64.b64encode(processed_audio).decode('utf-8')
+        
+        # Initialize ASR and NMT processing
+        bhashini = Bhashini(source_language, target_language)
+        translated_text = bhashini.asr_nmt(audio_base64)
+
+        if not translated_text:
+            raise HTTPException(status_code=500, detail="No translated text returned from ASR")
+
+        return {"translated_text": translated_text}
      except HTTPException as e:
          print(f"API Response: {e.detail}")
          return {"error": f"API Response: {e.detail}"}
