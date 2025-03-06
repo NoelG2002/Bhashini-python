@@ -131,7 +131,7 @@ async def process_chunk(chunk_path, bhashini):
 
 def merge_sentences(translated_texts):
     
-    return " ".join(merged_text)
+    return " ".join(translated_texts)
 
 
 
