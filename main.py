@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -94,22 +95,17 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-async def process_chunk(chunk_path, bhashini):
-    """Process a single chunk for ASR and NMT."""
-    with open(chunk_path, "rb") as f:
-        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-    
-    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
-    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
-
-
-async def split_audio(audio_path, chunk_length_ms=20000):
-    """Splits audio into non-overlapping chunks."""
+async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=3000):
+    """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
-        chunks = [audio[i : i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
+        chunks = []
+        start = 0
+        while start < len(audio):
+            end = min(start + chunk_length_ms, len(audio))
+            chunk = audio[start:end]
+            chunks.append(chunk)
+            start += chunk_length_ms - overlap_ms  # Overlapping part
         return chunks
 
     chunks = await asyncio.to_thread(sync_split)
@@ -121,6 +117,40 @@ async def split_audio(audio_path, chunk_length_ms=20000):
         chunk_paths.append(chunk_path)
 
     return chunk_paths
+
+
+
+async def process_chunk(chunk_path, bhashini):
+    """Process a single chunk for ASR and NMT."""
+    with open(chunk_path, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+    
+    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
+
+
+def merge_sentences(translated_texts):
+    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
+    merged_text = []
+    prev_words = []
+
+    for text in translated_texts:
+        words = text.split()  # Convert text into a list of words
+        
+        if prev_words:
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
+
+            for i in range(max_overlap, 0, -1):  
+                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
+                    words = words[i:]  # Remove overlapping words
+                    break
+
+        merged_text.extend(words)
+        prev_words = words  # Update previous words for the next iteration
+
+    return " ".join(merged_text)
+
+
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
@@ -136,14 +166,14 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
             
-        # Split the audio file into non-overlapping chunks
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000)
+        # Split the audio file into smaller chunks
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=3000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
-        merged_translation = " ".join(translated_texts)  # Direct concatenation without overlap removal
+        merged_translation = merge_sentences(translated_texts)
 
-        # Cleanup
+
         for chunk_path in chunk_paths:
             os.remove(chunk_path)
         os.remove(temp_file)
