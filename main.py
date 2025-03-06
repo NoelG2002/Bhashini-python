@@ -96,7 +96,6 @@ async def text_to_speech(request: TranslationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=4000):
-    """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
         chunks = []
@@ -105,74 +104,52 @@ async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=4000):
             end = min(start + chunk_length_ms, len(audio))
             chunk = audio[start:end]
             chunks.append(chunk)
-            start += chunk_length_ms - overlap_ms  # Overlapping part
+            start += chunk_length_ms - overlap_ms
         return chunks
 
     chunks = await asyncio.to_thread(sync_split)
-
     chunk_paths = []
     for idx, chunk in enumerate(chunks):
         chunk_path = f"chunk_{idx}.wav"
         chunk.export(chunk_path, format="wav")
         chunk_paths.append(chunk_path)
-
     return chunk_paths
 
-
-
 async def process_chunk(chunk_path, bhashini):
-    """Process a single chunk for ASR and NMT."""
     with open(chunk_path, "rb") as f:
         audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-    
-    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
-
 def merge_sentences(translated_texts):
-    """Merges overlapping text chunks at the word level by comparing with the previous sentence and removes redundancy."""
     merged_text = []
     prev_words = []
-
     for text in translated_texts:
-        words = text.split()  # Convert text into a list of words
-        
+        words = text.split()
         if prev_words:
-            max_overlap = min(20, len(prev_words), len(words))  # Allow overlap check up to 10 words
-
+            max_overlap = min(20, len(prev_words), len(words))
             for i in range(max_overlap, 0, -1):  
-                if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
-                    words = words[i:]  # Remove overlapping words
+                if words[:i] == prev_words[-i:]:
+                    words = words[i:]
                     break
-
         merged_text.extend(words)
-        prev_words = words  # Update previous words for the next iteration
-
+        prev_words = words
     return " ".join(merged_text)
 
-
-
-
-# Route to handle Automatic Speech Recognition (ASR) and NMT translation
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
     try:
-        # Check if source and target languages are valid codes
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
-        # Read the uploaded file (audio)
         temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
             
-        # Split the audio file into smaller chunks
         chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=4000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
         merged_translation = merge_sentences(translated_texts)
-
 
         for chunk_path in chunk_paths:
             os.remove(chunk_path)
@@ -180,7 +157,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
 
         return {"translated_text": merged_translation}
         
-        # Convert the file content to base64
+    # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
                
