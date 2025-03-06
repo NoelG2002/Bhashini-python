@@ -46,7 +46,7 @@ app.add_middleware(
 
 # Supported language codes
 LANGUAGE_CODES = {
-    "eng","hi", "gom", "kn", "doi", "brx", "ur", "ta", "ks", "as", "bn", "mr", "sd", "mai", "pa", "ml", "mni", "te", "sa", "ne", "sat", "gu", "or", "en"
+    "en","hi", "gom", "kn", "doi", "brx", "ur", "ta", "ks", "as", "bn", "mr", "sd", "mai", "pa", "ml", "mni", "te", "sa", "ne", "sat", "gu", "or", "en"
 }
 
 # Request model for translation with only language codes
