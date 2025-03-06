@@ -128,15 +128,16 @@ async def asr_nmt(
     source_language: str = Form(...), 
     target_language: str = Form(...)
 ):
+    chunk_paths = []  # Initialize here to prevent reference before assignment
+    
     try:
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
-        # ✅ Corrected Async File Handling
-        temp_file_path = None
-        async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+        # ✅ Use correct temporary file handling
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            temp_audio.write(await audio_file.read())
             temp_file_path = temp_audio.name
-            await temp_audio.write(await audio_file.read())
 
         # ✅ Split Audio into Chunks
         chunk_paths = split_audio(temp_file_path, chunk_length_ms=20000)
@@ -153,8 +154,8 @@ async def asr_nmt(
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        # ✅ Cleanup Temporary Files
-        if temp_file_path and os.path.exists(temp_file_path):
+        # ✅ Cleanup Temporary Files Safely
+        if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
         for chunk in chunk_paths:
             if os.path.exists(chunk):
