@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import base64
 import io
 from io import BytesIO
+import tempfile
 from dotenv import load_dotenv
 
 
@@ -110,58 +111,51 @@ def split_audio(audio_path, chunk_length_ms=20000):
 
 
 # Route to handle Automatic Speech Recognition (ASR) and NMT translation
+import asyncio
+import aiofiles
+from tempfile import NamedTemporaryFile
+
+async def process_audio_chunk(chunk_path, bhashini):
+    """Handles ASR processing of a single audio chunk asynchronously."""
+    async with aiofiles.open(chunk_path, "rb") as f:
+        audio_base64 = base64.b64encode(await f.read()).decode("utf-8")
+
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)  # Run blocking ASR in a thread
+
 @app.post("/asr_nmt")
-async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
+async def asr_nmt(
+    audio_file: UploadFile = File(...), 
+    source_language: str = Form(...), 
+    target_language: str = Form(...)
+):
     try:
-        # Check if source and target languages are valid codes
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
-        # Read the uploaded file (audio)
-        temp_file = f"temp_{audio_file.filename}"
-        with open(temp_file, "wb") as f:
-            shutil.copyfileobj(audio_file.file, f)
-            
-        # Split the audio file into smaller chunks
-        chunk_paths = split_audio(temp_file, chunk_length_ms=20000)  # 20 sec per chunk
+        # ✅ Corrected Async File Handling
+        temp_file_path = None
+        async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            temp_file_path = temp_audio.name
+            await temp_audio.write(await audio_file.read())
 
-        # Initialize Bhashini for ASR
+        # ✅ Split Audio into Chunks
+        chunk_paths = split_audio(temp_file_path, chunk_length_ms=20000)
+
+        # ✅ Initialize Bhashini API
         bhashini = Bhashini(source_language, target_language)
 
-        # Process each chunk separately
-        translated_texts = []
-        for chunk_path in chunk_paths:
-            with open(chunk_path, "rb") as f:
-                audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+        # ✅ Process all audio chunks concurrently
+        translated_texts = await asyncio.gather(*[process_audio_chunk(chunk, bhashini) for chunk in chunk_paths])
 
-            #Get ASR-NMT translation
-            translated_text = bhashini.asr_nmt(audio_base64)
-            translated_texts.append(translated_text)
+        return {"translated_text": " ".join(translated_texts)}
 
-        for chunk_path in chunk_paths:
-            os.remove(chunk_path)  # Clean up after use
-
-
-       # Delete the temporary file
-        os.remove(temp_file)
-
-       # Combine all translated chunks
-        final_translation = " ".join(translated_texts)
-        return {"translated_text": final_translation}
-
-
-        # Convert the file content to base64
-        #audio_content = await audio_file.read()
-        #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
-               
-        #os.remove(temp_file)
-
-        # Initialize Bhashini for ASR and NMT
-        #bhashini = Bhashini(source_language, target_language)
-        
-        # Pass the base64-encoded string to Bhashini's asr_nmt method
-        #translated_text = bhashini.asr_nmt(audio_base64)
-
-        #return {"translated_text": translated_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        # ✅ Cleanup Temporary Files
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        for chunk in chunk_paths:
+            if os.path.exists(chunk):
+                os.remove(chunk)
