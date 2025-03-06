@@ -95,57 +95,61 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def split_audio(audio_path, chunk_length_ms=15000):
+
+async def process_chunk(chunk_path, bhashini):
+    """Process a single chunk for ASR and NMT."""
+    with open(chunk_path, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+    
+    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
+    return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
+
+
+async def split_audio(audio_path, chunk_length_ms=20000):
+    """Splits audio into non-overlapping chunks."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
-        chunks = []
-        start = 0
-        while start < len(audio):
-            end = min(start + chunk_length_ms, len(audio))
-            chunk = audio[start:end]
-            chunks.append(chunk)
-            start += chunk_length_ms  # No overlap
-        return chunks
+        return [audio[i:i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
 
     chunks = await asyncio.to_thread(sync_split)
+
     chunk_paths = []
     for idx, chunk in enumerate(chunks):
         chunk_path = f"chunk_{idx}.wav"
         chunk.export(chunk_path, format="wav")
         chunk_paths.append(chunk_path)
+
     return chunk_paths
 
-async def process_chunk(chunk_path, bhashini):
-    with open(chunk_path, "rb") as f:
-        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
-    return await asyncio.to_thread(bhashini.asr_nmt(audio_base64))
-
-def merge_sentences(translated_texts):
-    return " ".join(translated_texts)  # Simple concatenation without overlap handling
-
+# ASR + NMT Endpoint (Concatenated Output)
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
     try:
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
+        # Save uploaded audio file
         temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
-            
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=15000)
+
+        # Split audio without overlap
+        chunk_paths = await split_audio(temp_file)
+
         bhashini = Bhashini(source_language, target_language)
-
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
-        merged_translation = merge_sentences(translated_texts)
 
+        # Clean up temporary files
         for chunk_path in chunk_paths:
             os.remove(chunk_path)
         os.remove(temp_file)
 
-        return {"translated_text": merged_translation}
+        # Join all translated texts into a single string
+        final_translation = " ".join(translated_texts)
+
+        return {"translated_text": final_translation}
         
-    # Convert the file content to base64
+        # Convert the file content to base64
         #audio_content = await audio_file.read()
         #audio_base64 = base64.b64encode(audio_content).decode('utf-8')
                
