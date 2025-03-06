@@ -95,7 +95,7 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=5000):
+async def split_audio(audio_path, chunk_length_ms=20000):
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
         chunks = []
@@ -104,7 +104,7 @@ async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=5000):
             end = min(start + chunk_length_ms, len(audio))
             chunk = audio[start:end]
             chunks.append(chunk)
-            start += chunk_length_ms - overlap_ms
+            start += chunk_length_ms  # No overlap
         return chunks
 
     chunks = await asyncio.to_thread(sync_split)
@@ -121,19 +121,7 @@ async def process_chunk(chunk_path, bhashini):
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
 def merge_sentences(translated_texts):
-    merged_text = []
-    prev_words = []
-    for text in translated_texts:
-        words = text.split()
-        if prev_words:
-            max_overlap = min(20, len(prev_words), len(words))
-            for i in range(max_overlap, 0, -1):  
-                if words[:i] == prev_words[-i:]:
-                    words = words[i:]
-                    break
-        merged_text.extend(words)
-        prev_words = words
-    return " ".join(merged_text)
+    return " ".join(translated_texts)  # Simple concatenation without overlap handling
 
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
@@ -145,7 +133,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
             
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=5000)
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
