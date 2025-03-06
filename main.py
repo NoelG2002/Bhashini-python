@@ -160,3 +160,9 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         #return {"translated_text": translated_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        for chunk_path in chunk_paths:
+            if os.path.exists(chunk_path):
+                os.remove(chunk_path)
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
