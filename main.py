@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -95,7 +94,7 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=4000):
+async def split_audio(audio_path, chunk_length_ms=20000, overlap_ms=3000):
     """Splits audio into overlapping chunks to preserve context."""
     def sync_split():
         audio = AudioSegment.from_file(audio_path)
@@ -138,7 +137,7 @@ def merge_sentences(translated_texts):
         words = text.split()  # Convert text into a list of words
         
         if prev_words:
-            max_overlap = min(20, len(prev_words), len(words))  # Allow overlap check up to 10 words
+            max_overlap = min(10, len(prev_words), len(words))  # Allow overlap check up to 10 words
 
             for i in range(max_overlap, 0, -1):  
                 if words[:i] == prev_words[-i:]:  # Compare start of new sentence with end of previous one
@@ -167,7 +166,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
             
         # Split the audio file into smaller chunks
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=4000)
+        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000, overlap_ms=3000)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
