@@ -126,4 +126,4 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         return {"translated_text": " ".join(translated_texts)}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)
+        raise HTTPException(status_code=500, detail=str(e))
