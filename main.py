@@ -95,23 +95,24 @@ async def text_to_speech(request: TranslationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-async def split_audio(audio_path, chunk_length_ms=20000):
+def split_audio(audio_path, chunk_length_ms=20000):
     audio = AudioSegment.from_file(audio_path)
     return [audio[i:i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
 
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
-    if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
-        raise HTTPException(status_code=400, detail="Invalid language code.")
-    
-    temp_file = f"temp_{audio_file.filename}"
     try:
+        if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
+            raise HTTPException(status_code=400, detail="Invalid language code.")
+
+        temp_file = f"temp_{audio_file.filename}"
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
-        
+
+        # Run the synchronous function in a separate thread
         chunks = await asyncio.to_thread(split_audio, temp_file)
         bhashini = Bhashini(source_language, target_language)
-        
+
         translated_texts = []
         for idx, chunk in enumerate(chunks):
             chunk_path = f"chunk_{idx}.wav"
@@ -120,10 +121,9 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
                 audio_base64 = base64.b64encode(f.read()).decode('utf-8')
             translated_texts.append(await asyncio.to_thread(bhashini.asr_nmt, audio_base64))
             os.remove(chunk_path)
-        
+
+        os.remove(temp_file)
         return {"translated_text": " ".join(translated_texts)}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        raise HTTPException(status_code=500, detail=str(e)
