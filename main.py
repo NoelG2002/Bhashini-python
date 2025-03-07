@@ -157,6 +157,7 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
         merged_translation = merge_sentences(translated_texts)
+        await asyncio.sleep(0.5)  # Wait before processing the next request
 
 
         for chunk_path in chunk_paths:
