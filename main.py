@@ -151,7 +151,6 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
             shutil.copyfileobj(audio_file.file, f)
         audio_file.file.close()  # Close file handle
 
-        logging.info(f"Audio file saved: {temp_file}")
 
         # Convert audio to WAV format if needed
         audio = AudioSegment.from_file(temp_file)
@@ -172,12 +171,10 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         os.remove(converted_file)
         gc.collect()
 
-        logging.info(f"Translation completed successfully.")
 
         return {"translated_text": merged_translation}
 
     except Exception as e:
-        logging.error(f"ASR-NMT error: {e}")
         raise HTTPException(status_code=500, detail=str(e))       
         
         # Convert the file content to base64
