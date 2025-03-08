@@ -167,6 +167,8 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         if os.path.exists(temp_file):
             os.remove(temp_file)
         gc.collect()  # Force garbage collection
+        audio_file.file.close()
+
 
 
         return {"translated_text": merged_translation}
