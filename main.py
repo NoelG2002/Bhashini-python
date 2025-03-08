@@ -99,16 +99,17 @@ async def text_to_speech(request: TranslationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def split_audio(audio_path, chunk_length_ms=20000):
-    """Splits audio into overlapping chunks to preserve context."""
+    """Splits audio into smaller chunks while optimizing size."""
+    
     def sync_split():
-        audio = AudioSegment.from_file(audio_path)
+        audio = AudioSegment.from_file(audio_path).set_frame_rate(16000).set_channels(1)  # Optimized sample rate
         chunks = []
         start = 0
         while start < len(audio):
             end = min(start + chunk_length_ms, len(audio))
             chunk = audio[start:end]
             chunks.append(chunk)
-            start += chunk_length_ms 
+            start += chunk_length_ms
         return chunks
 
     chunks = await asyncio.to_thread(sync_split)
@@ -122,56 +123,62 @@ async def split_audio(audio_path, chunk_length_ms=20000):
     return chunk_paths
 
 
-
+# Process a single chunk
 async def process_chunk(chunk_path, bhashini):
-    """Process a single chunk for ASR and NMT."""
-    with open(chunk_path, "rb", buffering=0) as f:
-        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+    """Processes a single chunk for ASR and NMT translation."""
+    with open(chunk_path, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode("utf-8")
     
-    # Ensure asr_nmt is called correctly (depending on whether it's async or not)
     return await asyncio.to_thread(bhashini.asr_nmt, audio_base64)
 
 
 def merge_sentences(translated_texts):
+    """Merges translated chunks into a single response."""
     return " ".join(translated_texts)
 
 
-
-
-# Route to handle Automatic Speech Recognition (ASR) and NMT translation
+# ASR & NMT Translation API
 @app.post("/asr_nmt")
 async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...)):
     try:
-        # Check if source and target languages are valid codes
         if source_language not in LANGUAGE_CODES or target_language not in LANGUAGE_CODES:
             raise HTTPException(status_code=400, detail="Invalid language code.")
 
-        # Read the uploaded file (audio)
-        temp_file = f"temp_{uuid.uuid4().hex}.wav"  # Generates a unique filename
+        temp_file = f"temp_{uuid.uuid4().hex}.wav"
+        
+        # Save uploaded file
         with open(temp_file, "wb") as f:
             shutil.copyfileobj(audio_file.file, f)
-            
-        # Split the audio file into smaller chunks
-        chunk_paths = await split_audio(temp_file, chunk_length_ms=20000)
+        audio_file.file.close()  # Close file handle
+
+        logging.info(f"Audio file saved: {temp_file}")
+
+        # Convert audio to WAV format if needed
+        audio = AudioSegment.from_file(temp_file)
+        converted_file = temp_file.replace(".wav", "_converted.wav")
+        audio.export(converted_file, format="wav")
+        os.remove(temp_file)  # Remove original
+
+        # Split audio
+        chunk_paths = await split_audio(converted_file)
         bhashini = Bhashini(source_language, target_language)
 
         translated_texts = await asyncio.gather(*(process_chunk(chunk, bhashini) for chunk in chunk_paths))
         merged_translation = merge_sentences(translated_texts)
-        await asyncio.sleep(0.5)  # Wait before processing the next request
 
-
+        # Cleanup temporary files
         for chunk_path in chunk_paths:
-            if os.path.exists(chunk_path):
-                os.remove(chunk_path)
+            os.remove(chunk_path)
+        os.remove(converted_file)
+        gc.collect()
 
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-        gc.collect()  # Force garbage collection
-        audio_file.file.close()
-
-
+        logging.info(f"Translation completed successfully.")
 
         return {"translated_text": merged_translation}
+
+    except Exception as e:
+        logging.error(f"ASR-NMT error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))       
         
         # Convert the file content to base64
         #audio_content = await audio_file.read()
@@ -186,5 +193,5 @@ async def asr_nmt(audio_file: UploadFile = File(...), source_language: str = For
         #translated_text = bhashini.asr_nmt(audio_base64)
 
         #return {"translated_text": translated_text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    #except Exception as e:
+     #   raise HTTPException(status_code=500, detail=str(e))
